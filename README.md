@@ -6,3 +6,6 @@ This a small tool that pulls all PRs from a specific Github repo then reformats 
 Requirements:
 - Github token
 - Notion integration
+
+Usage:
+`go run main.go -notionToken="<notion integration token>" -githubToken="<github token>" -dbID="<notion db id>" -dryRun=0 -githubOwner=<github repo owner> -repo=<github repo name>`
