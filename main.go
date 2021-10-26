@@ -216,16 +216,19 @@ func (rm *repoMigrator) formatNotionProperties(ctx context.Context, githubClient
 		}
 	}
 
-	reviewers, _, err := rm.githubClient.PullRequests.ListReviewers(ctx, rm.githubOrgOwner, rm.repoName, *pr.Number, &github.ListOptions{})
+	reviewerListOptions := &github.ListOptions{}
+	reviewerListOptions.PerPage = 100
+	reviews, _, err := rm.githubClient.PullRequests.ListReviews(ctx, rm.githubOrgOwner, rm.repoName, *pr.Number, reviewerListOptions)
 	if err != nil {
 		return nil, fmt.Errorf("could not fetch reviewers %s", err.Error())
 	}
 
 	accountable := []string{}
-	if reviewers != nil {
-		for _, reviewer := range reviewers.Users {
-			if reviewer.Login != nil {
-				accountable = append(accountable, *reviewer.Login)
+	for _, review := range reviews {
+		// only add approvers to list of accountable
+		if *review.State == "APPROVED" {
+			if review.User != nil {
+				accountable = append(accountable, *review.User.Login)
 			}
 		}
 	}
