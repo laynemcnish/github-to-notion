@@ -223,16 +223,23 @@ func (rm *repoMigrator) formatNotionProperties(ctx context.Context, githubClient
 		return nil, fmt.Errorf("could not fetch reviewers %s", err.Error())
 	}
 
+	uniqueInformed := make(map[string]string)
+
+	uniqueAccountable := make(map[string]string)
 	accountable := []string{}
 	for _, review := range reviews {
 		// only add approvers to list of accountable
 		if *review.State == "APPROVED" {
-			if review.User != nil {
-				accountable = append(accountable, *review.User.Login)
-			}
+			uniqueAccountable[*review.User.Login] = *review.User.Login
+		} else {
+			// everyone else has only been informed
+			uniqueInformed[*review.User.Login] = *review.User.Login
 		}
 	}
 
+	for _, usr := range uniqueAccountable {
+		accountable = append(accountable, usr)
+	}
 	properties["Accountable"] = notionapi.RichTextProperty{
 		Type: "rich_text",
 		RichText: []notionapi.RichText{
@@ -243,11 +250,15 @@ func (rm *repoMigrator) formatNotionProperties(ctx context.Context, githubClient
 		},
 	}
 
-	contributors := []string{}
+	uniqueContributors := make(map[string]string)
 	for _, usr := range pr.RequestedReviewers {
 		if usr.Login != nil {
-			contributors = append(contributors, *usr.Login)
+			uniqueContributors[*usr.Login] = *usr.Login
 		}
+	}
+	contributors := []string{}
+	for _, uniqueContributor := range uniqueContributors {
+		contributors = append(contributors, uniqueContributor)
 	}
 	properties["Contributors"] = notionapi.RichTextProperty{
 		Type: "rich_text",
@@ -256,40 +267,48 @@ func (rm *repoMigrator) formatNotionProperties(ctx context.Context, githubClient
 		},
 	}
 
-	informed := []notionapi.RichText{}
 	servicesSurfaces := []notionapi.Option{}
 	for _, label := range pr.Labels {
 		switch *label.Name {
 		case "data":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "data"}})
+			uniqueInformed["data"] = "data"
 		case "desktop":
 			servicesSurfaces = append(servicesSurfaces, notionapi.Option{Name: "desktop", Color: notionapi.ColorBlue})
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "guild-surfaces"}})
+			uniqueInformed["guild-surfaces"] = "guild-surfaces"
 		case "marketplace-core":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "monetization"}})
+			uniqueInformed["monetization"] = "monetization"
 		case "search":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "search"}})
+			uniqueInformed["search"] = "search"
 		case "sig-backend":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "guild-api"}})
+			uniqueInformed["guild-api"] = "guild-api"
 		case "sre":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "sre"}})
+			uniqueInformed["sre"] = "sre"
 		case "studio":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "ltb"}})
+			uniqueInformed["ltb"] = "ltb"
 		case "surfaces":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "guild-surfaces"}})
+			uniqueInformed["guild-surfaces"] = "guild-surfaces"
 		case "vert-cc":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "ltb"}})
+			uniqueInformed["ltb"] = "ltb"
 		case "vert-gear":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "creator tools"}})
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "monetization"}})
+			uniqueInformed["creator tools"] = "creator tools"
+			uniqueInformed["monetization"] = "monetization"
 		case "vert-sounds":
-			informed = append(informed, notionapi.RichText{Type: "text", Text: notionapi.Text{Content: "catalog"}})
+			uniqueInformed["catalog"] = "catalog"
 		}
 	}
 
+	informed := []string{}
+	for _, uniqueInformed := range uniqueInformed {
+		informed = append(informed, uniqueInformed)
+	}
 	properties["Informed"] = notionapi.RichTextProperty{
-		Type:     "rich_text",
-		RichText: informed,
+		Type: "rich_text",
+		RichText: []notionapi.RichText{
+			{
+				Type: "text",
+				Text: notionapi.Text{Content: strings.Join(informed, ", ")},
+			},
+		},
 	}
 	properties["Services/Surfaces"] = notionapi.MultiSelectProperty{
 		Type:        "multi_select",
